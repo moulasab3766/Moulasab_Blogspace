@@ -2,3 +2,5 @@
 Thumbs.db
 .vscode/
 *.log
+backend/node_modules/
+backend/.env
