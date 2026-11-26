@@ -9,6 +9,13 @@ const blogSchema = new mongoose.Schema(
       minlength: 3,
       maxlength: 120
     },
+    excerpt: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 15,
+      maxlength: 180
+    },
     content: {
       type: String,
       required: true,
@@ -18,7 +25,12 @@ const blogSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ["Technology", "Lifestyle", "Learning", "Design"]
+      enum: ["Technology", "Lifestyle", "Learning", "Design", "Career"]
+    },
+    readTime: {
+      type: String,
+      enum: ["3 min read", "5 min read", "7 min read", "10 min read"],
+      default: "5 min read"
     },
     author: {
       type: mongoose.Schema.Types.ObjectId,
