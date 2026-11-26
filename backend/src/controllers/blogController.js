@@ -11,21 +11,11 @@ function validateBlog(body) {
   const category = String(body.category || "").trim();
   const readTime = String(body.readTime || "5 min read").trim();
 
-  if (title.length < 3 || title.length > 120) {
-    return { error: "Title must be between 3 and 120 characters." };
-  }
-  if (excerpt.length < 15 || excerpt.length > 180) {
-    return { error: "Summary must be between 15 and 180 characters." };
-  }
-  if (content.length < 20) {
-    return { error: "Content must contain at least 20 characters." };
-  }
-  if (!categories.includes(category)) {
-    return { error: "Choose a valid category." };
-  }
-  if (!readingTimes.includes(readTime)) {
-    return { error: "Choose a valid reading time." };
-  }
+  if (title.length < 3 || title.length > 120) return { error: "Title must be between 3 and 120 characters." };
+  if (excerpt.length < 15 || excerpt.length > 180) return { error: "Summary must be between 15 and 180 characters." };
+  if (content.length < 20) return { error: "Content must contain at least 20 characters." };
+  if (!categories.includes(category)) return { error: "Choose a valid category." };
+  if (!readingTimes.includes(readTime)) return { error: "Choose a valid reading time." };
   return { value: { title, excerpt, content, category, readTime } };
 }
 
@@ -34,16 +24,20 @@ function validId(id) {
 }
 
 export async function listBlogs(_req, res) {
-  const blogs = await Blog.find()
-    .populate("author", "name")
+  const blogs = await Blog.find().populate("author", "name").sort({ createdAt: -1 });
+  res.json({ blogs });
+}
+
+// This endpoint scopes the query in MongoDB itself; clients never receive other users' private dashboard list.
+export async function listMyBlogs(req, res) {
+  const blogs = await Blog.find({ author: req.user.id })
+    .populate("author", "name email")
     .sort({ createdAt: -1 });
   res.json({ blogs });
 }
 
 export async function getBlog(req, res) {
-  if (!validId(req.params.id)) {
-    return res.status(400).json({ message: "Invalid blog ID." });
-  }
+  if (!validId(req.params.id)) return res.status(400).json({ message: "Invalid blog ID." });
   const blog = await Blog.findById(req.params.id).populate("author", "name");
   if (!blog) return res.status(404).json({ message: "Blog not found." });
   res.json({ blog });
@@ -52,16 +46,13 @@ export async function getBlog(req, res) {
 export async function createBlog(req, res) {
   const result = validateBlog(req.body);
   if (result.error) return res.status(400).json({ message: result.error });
-
   const blog = await Blog.create({ ...result.value, author: req.user.id });
   await blog.populate("author", "name");
   res.status(201).json({ message: "Blog created.", blog });
 }
 
 export async function updateBlog(req, res) {
-  if (!validId(req.params.id)) {
-    return res.status(400).json({ message: "Invalid blog ID." });
-  }
+  if (!validId(req.params.id)) return res.status(400).json({ message: "Invalid blog ID." });
   const result = validateBlog(req.body);
   if (result.error) return res.status(400).json({ message: result.error });
 
@@ -80,9 +71,7 @@ export async function updateBlog(req, res) {
 }
 
 export async function deleteBlog(req, res) {
-  if (!validId(req.params.id)) {
-    return res.status(400).json({ message: "Invalid blog ID." });
-  }
+  if (!validId(req.params.id)) return res.status(400).json({ message: "Invalid blog ID." });
   const blog = await Blog.findOneAndDelete({ _id: req.params.id, author: req.user.id });
 
   if (!blog) {
