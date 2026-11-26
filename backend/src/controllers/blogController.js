@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { blogs } from "../data/store.js";
+import mongoose from "mongoose";
+import Blog from "../models/Blog.js";
 
 const categories = ["Technology", "Lifestyle", "Learning", "Design"];
 
@@ -8,56 +8,95 @@ function validateBlog(body) {
   const content = String(body.content || "").trim();
   const category = String(body.category || "").trim();
 
-  if (title.length < 3 || title.length > 120) return { error: "Title must be between 3 and 120 characters." };
-  if (content.length < 20) return { error: "Content must contain at least 20 characters." };
-  if (!categories.includes(category)) return { error: "Choose a valid category." };
+  if (title.length < 3 || title.length > 120) {
+    return { error: "Title must be between 3 and 120 characters." };
+  }
+  if (content.length < 20) {
+    return { error: "Content must contain at least 20 characters." };
+  }
+  if (!categories.includes(category)) {
+    return { error: "Choose a valid category." };
+  }
   return { value: { title, content, category } };
 }
 
-export function listBlogs(req, res) {
-  const items = [...blogs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  res.json({ blogs: items });
+function validId(id) {
+  return mongoose.isValidObjectId(id);
 }
 
-export function getBlog(req, res) {
-  const blog = blogs.find(item => item.id === req.params.id);
+// READ: get all published blog records.
+export async function listBlogs(_req, res) {
+  const blogs = await Blog.find()
+    .populate("author", "name")
+    .sort({ createdAt: -1 });
+  res.json({ blogs });
+}
+
+// READ: get one blog by its MongoDB ID.
+export async function getBlog(req, res) {
+  if (!validId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid blog ID." });
+  }
+
+  const blog = await Blog.findById(req.params.id).populate("author", "name");
   if (!blog) return res.status(404).json({ message: "Blog not found." });
   res.json({ blog });
 }
 
-export function createBlog(req, res) {
+// CREATE: save a blog document linked to the logged-in author.
+export async function createBlog(req, res) {
   const result = validateBlog(req.body);
   if (result.error) return res.status(400).json({ message: result.error });
 
-  const blog = {
-    id: randomUUID(),
+  const blog = await Blog.create({
     ...result.value,
-    authorId: req.user.id,
-    authorEmail: req.user.email,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  blogs.push(blog);
+    author: req.user.id
+  });
+
+  await blog.populate("author", "name");
   res.status(201).json({ message: "Blog created.", blog });
 }
 
-export function updateBlog(req, res) {
-  const blog = blogs.find(item => item.id === req.params.id);
-  if (!blog) return res.status(404).json({ message: "Blog not found." });
-  if (blog.authorId !== req.user.id) return res.status(403).json({ message: "You can only edit your own blogs." });
+// UPDATE: only the author who owns the blog can update it.
+export async function updateBlog(req, res) {
+  if (!validId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid blog ID." });
+  }
 
   const result = validateBlog(req.body);
   if (result.error) return res.status(400).json({ message: result.error });
 
-  Object.assign(blog, result.value, { updatedAt: new Date().toISOString() });
+  const blog = await Blog.findOneAndUpdate(
+    { _id: req.params.id, author: req.user.id },
+    result.value,
+    { new: true, runValidators: true }
+  ).populate("author", "name");
+
+  if (!blog) {
+    const exists = await Blog.exists({ _id: req.params.id });
+    if (!exists) return res.status(404).json({ message: "Blog not found." });
+    return res.status(403).json({ message: "You can only edit your own blogs." });
+  }
+
   res.json({ message: "Blog updated.", blog });
 }
 
-export function deleteBlog(req, res) {
-  const index = blogs.findIndex(item => item.id === req.params.id);
-  if (index === -1) return res.status(404).json({ message: "Blog not found." });
-  if (blogs[index].authorId !== req.user.id) return res.status(403).json({ message: "You can only delete your own blogs." });
+// DELETE: only the author who owns the blog can delete it.
+export async function deleteBlog(req, res) {
+  if (!validId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid blog ID." });
+  }
 
-  blogs.splice(index, 1);
+  const blog = await Blog.findOneAndDelete({
+    _id: req.params.id,
+    author: req.user.id
+  });
+
+  if (!blog) {
+    const exists = await Blog.exists({ _id: req.params.id });
+    if (!exists) return res.status(404).json({ message: "Blog not found." });
+    return res.status(403).json({ message: "You can only delete your own blogs." });
+  }
+
   res.json({ message: "Blog deleted." });
 }
