@@ -1,1 +1,305 @@
-(()=>{'use strict';const U='blogspace_users_v1',S='blogspace_session_v1',P='blogspace_posts_v1',$=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],read=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},write=(k,v)=>localStorage.setItem(k,JSON.stringify(v)),user=()=>read(S,null),posts=()=>read(P,[]),users=()=>read(U,[]),safe=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),msg=(f,t)=>$('.form-message',f).textContent=t,goLogin=()=>{if(!user()){location.href='login.html';return false}return true};if(!localStorage.getItem(P))write(P,[{id:'seed1',title:'The quiet power of learning something new',category:'Learning',excerpt:'Small, consistent steps can open doors you never knew existed. Curiosity is a lifelong advantage.',content:'Keep learning with small steps.',author:'Aarav Mehta',authorEmail:'aarav@example.test',createdAt:'2026-10-18',readTime:'5 min read'},{id:'seed2',title:'Designing a calmer digital life',category:'Lifestyle',excerpt:'Thoughtful boundaries can make technology feel useful instead of overwhelming.',content:'Use technology with intention.',author:'Maya Rao',authorEmail:'maya@example.test',createdAt:'2026-10-15',readTime:'3 min read'},{id:'seed3',title:'What building side projects teaches you',category:'Technology',excerpt:'Side projects teach trade-offs, debugging and finishing what you start.',content:'Build, test, learn and improve.',author:'Ishaan Kulkarni',authorEmail:'ishaan@example.test',createdAt:'2026-10-12',readTime:'7 min read'}]);$$('[data-year]').forEach(x=>x.textContent=new Date().getFullYear());$$('[data-logout]').forEach(x=>{x.hidden=!user();x.onclick=e=>{e.preventDefault();localStorage.removeItem(S);location.href='index.html'}});$$('[data-guest-link]').forEach(x=>x.hidden=!!user());$$('.menu-toggle').forEach(x=>x.onclick=()=>$('.nav-links').classList.toggle('nav-open'));const grid=$('#post-grid');if(grid){let cat='All';const render=()=>{const q=($('#search-input')?.value||'').toLowerCase();const list=posts().filter(p=>(cat==='All'||p.category===cat)&&[p.title,p.excerpt,p.author,p.category].join(' ').toLowerCase().includes(q));grid.innerHTML=list.map(p=>'<article class="post-card"><div class="post-visual">'+safe(p.category)+'</div><div class="post-content"><div class="post-meta">'+safe(p.readTime||'4 min read')+' · '+new Date(p.createdAt).toLocaleDateString()+'</div><h3>'+safe(p.title)+'</h3><p>'+safe(p.excerpt)+'</p><small>BY '+safe(p.author)+'</small></div></article>').join('');$('#empty-state').hidden=!!list.length};$('#search-input').oninput=render;$$('[data-category]').forEach(b=>b.onclick=()=>{cat=b.dataset.category;$$('[data-category]').forEach(x=>x.classList.toggle('selected',x===b));render()});render()}const rf=$('#register-form');rf?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(rf),name=String(d.get('name')).trim(),email=String(d.get('email')).trim().toLowerCase(),password=String(d.get('password')),confirm=String(d.get('confirmPassword'));if(name.length<2||!/^\S+@\S+\.\S+$/.test(email)||password.length<6)return msg(rf,'Enter a valid name, email and password (6+ characters).');if(password!==confirm)return msg(rf,'Your passwords do not match.');const all=users();if(all.some(x=>x.email===email))return msg(rf,'This email is already registered. Please log in.');all.push({name,email,password});write(U,all);write(S,{name,email});location.href='dashboard.html'});const lf=$('#login-form');lf?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(lf),email=String(d.get('email')).trim().toLowerCase(),password=String(d.get('password')),found=users().find(x=>x.email===email&&x.password===password);if(!found)return msg(lf,'Email or password is incorrect.');write(S,{name:found.name,email});location.href='dashboard.html'});const list=$('#my-posts');if(list&&goLogin()){const me=user(),mine=posts().filter(p=>p.authorEmail===me.email);$('#dashboard-name').textContent=me.name.split(' ')[0];$('#stat-total').textContent=mine.length;$('#stat-published').textContent=mine.length;$('#stat-categories').textContent=new Set(mine.map(p=>p.category)).size;$('#dashboard-empty').hidden=!!mine.length;list.innerHTML=mine.map(p=>'<article class="manage-card"><div><small>'+safe(p.category)+'</small><h3>'+safe(p.title)+'</h3><small>'+new Date(p.createdAt).toLocaleDateString()+'</small></div><div class="manage-actions"><a href="create-blog.html?edit='+encodeURIComponent(p.id)+'">Edit</a><button class="danger" data-delete="'+safe(p.id)+'">Delete</button></div></article>').join('');$$('[data-delete]').forEach(b=>b.onclick=()=>{if(confirm('Delete this story?')){write(P,posts().filter(p=>p.id!==b.dataset.delete));location.reload()}})}const pf=$('#post-form');if(pf&&goLogin()){const me=user(),id=new URLSearchParams(location.search).get('edit'),old=id?posts().find(p=>p.id===id&&p.authorEmail===me.email):null;if(old){$('#editor-heading').textContent='Edit your story.';for(const k of ['title','category','readTime','excerpt','content'])pf.elements[k].value=old[k];pf.elements.postId.value=old.id;pf.querySelector('button').textContent='Save changes'}pf.onsubmit=e=>{e.preventDefault();const d=new FormData(pf),title=String(d.get('title')).trim(),category=String(d.get('category')),excerpt=String(d.get('excerpt')).trim(),content=String(d.get('content')).trim();if(title.length<4||!category||excerpt.length<15||content.length<30)return msg(pf,'Add a title (4+), category, summary (15+) and story (30+ characters).');const all=posts(),p={id:old?.id||'post-'+Date.now(),title,category,readTime:d.get('readTime'),excerpt,content,author:me.name,authorEmail:me.email,createdAt:old?.createdAt||new Date().toISOString()};if(old)all[all.findIndex(x=>x.id===old.id)]=p;else all.push(p);write(P,all);location.href='dashboard.html'}}})();
+(() => {
+  "use strict";
+
+  const API_BASE = "http://localhost:5000/api";
+  const SESSION_KEY = "blogspace_session_v2";
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+  const getSession = () => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); }
+    catch { return null; }
+  };
+  const saveSession = (data) => sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  const clearSession = () => sessionStorage.removeItem(SESSION_KEY);
+  const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+
+  async function api(path, options = {}) {
+    const session = getSession();
+    const headers = { ...(options.headers || {}) };
+    if (options.body) headers["Content-Type"] = "application/json";
+    if (session?.token) headers.Authorization = `Bearer ${session.token}`;
+
+    let response;
+    try {
+      response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    } catch {
+      throw new Error("Cannot reach the BlogSpace API. Start the backend and check that it runs on port 5000.");
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) clearSession();
+      const error = new Error(data.message || "Something went wrong. Please try again.");
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  }
+
+  function showMessage(form, message) {
+    const target = $(".form-message", form);
+    if (target) target.textContent = message;
+  }
+
+  function updateNavigation() {
+    const loggedIn = !!getSession()?.token;
+    $$("[data-logout]").forEach(link => {
+      link.hidden = !loggedIn;
+      link.onclick = event => {
+        event.preventDefault();
+        clearSession();
+        location.href = "index.html";
+      };
+    });
+    $$("[data-guest-link]").forEach(link => link.hidden = loggedIn);
+    $$("[data-auth-link]").forEach(link => link.hidden = !loggedIn);
+    $$("[data-year]").forEach(item => item.textContent = new Date().getFullYear());
+    $$(".menu-toggle").forEach(button => {
+      button.onclick = () => $(".nav-links")?.classList.toggle("nav-open");
+    });
+  }
+
+  function requireLogin() {
+    if (!getSession()?.token) {
+      location.href = "login.html";
+      return false;
+    }
+    return true;
+  }
+
+  function authorName(blog) {
+    return typeof blog.author === "object" ? blog.author?.name || "BlogSpace writer" : "BlogSpace writer";
+  }
+
+  async function setupHome() {
+    const grid = $("#post-grid");
+    if (!grid) return;
+
+    let allBlogs = [];
+    let activeCategory = "All";
+
+    const render = () => {
+      const search = ($("#search-input")?.value || "").trim().toLowerCase();
+      const visible = allBlogs.filter(blog => {
+        const categoryMatch = activeCategory === "All" || blog.category === activeCategory;
+        const searchMatch = [blog.title, blog.excerpt, authorName(blog), blog.category]
+          .join(" ").toLowerCase().includes(search);
+        return categoryMatch && searchMatch;
+      });
+
+      grid.innerHTML = visible.map(blog => `
+        <article class="post-card">
+          <div class="post-visual">${escapeHTML(blog.category)}</div>
+          <div class="post-content">
+            <div class="post-meta">${escapeHTML(blog.readTime || "5 min read")} · ${new Date(blog.createdAt).toLocaleDateString()}</div>
+            <h3>${escapeHTML(blog.title)}</h3>
+            <p>${escapeHTML(blog.excerpt)}</p>
+            <small>BY ${escapeHTML(authorName(blog))}</small>
+          </div>
+        </article>
+      `).join("");
+      $("#empty-state").hidden = visible.length > 0;
+    };
+
+    $("#search-input")?.addEventListener("input", render);
+    $$("[data-category]").forEach(button => {
+      button.addEventListener("click", () => {
+        activeCategory = button.dataset.category;
+        $$("[data-category]").forEach(item => item.classList.toggle("selected", item === button));
+        render();
+      });
+    });
+
+    try {
+      const result = await api("/blogs");
+      allBlogs = result.blogs || [];
+      render();
+    } catch (error) {
+      grid.innerHTML = "";
+      $("#empty-state").hidden = false;
+      $("#empty-state").textContent = error.message;
+    }
+  }
+
+  function setupRegister() {
+    const form = $("#register-form");
+    if (!form) return;
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const name = String(data.get("name") || "").trim();
+      const email = String(data.get("email") || "").trim().toLowerCase();
+      const password = String(data.get("password") || "");
+      const confirmPassword = String(data.get("confirmPassword") || "");
+
+      if (name.length < 2) return showMessage(form, "Your name must contain at least 2 characters.");
+      if (password.length < 8) return showMessage(form, "Use a password with at least 8 characters.");
+      if (password !== confirmPassword) return showMessage(form, "Your passwords do not match.");
+
+      const button = $('button[type="submit"]', form);
+      button.disabled = true;
+      try {
+        const result = await api("/auth/register", {
+          method: "POST",
+          body: JSON.stringify({ name, email, password })
+        });
+        saveSession({ token: result.token, user: result.user });
+        location.href = "dashboard.html";
+      } catch (error) {
+        showMessage(form, error.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  function setupLogin() {
+    const form = $("#login-form");
+    if (!form) return;
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const email = String(data.get("email") || "").trim().toLowerCase();
+      const password = String(data.get("password") || "");
+      const button = $('button[type="submit"]', form);
+      button.disabled = true;
+
+      try {
+        const result = await api("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password })
+        });
+        saveSession({ token: result.token, user: result.user });
+        location.href = "dashboard.html";
+      } catch (error) {
+        showMessage(form, error.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  async function setupDashboard() {
+    const list = $("#my-posts");
+    if (!list || !requireLogin()) return;
+
+    const session = getSession();
+    const me = session.user;
+    $("#dashboard-name").textContent = me?.name?.split(" ")[0] || "writer";
+
+    try {
+      const result = await api("/blogs");
+      const mine = (result.blogs || []).filter(blog => {
+        const authorId = typeof blog.author === "object" ? blog.author?._id : blog.author;
+        return authorId === me.id;
+      });
+
+      $("#stat-total").textContent = mine.length;
+      $("#stat-published").textContent = mine.length;
+      $("#stat-categories").textContent = new Set(mine.map(blog => blog.category)).size;
+      $("#dashboard-empty").hidden = mine.length > 0;
+      list.innerHTML = mine.map(blog => `
+        <article class="manage-card">
+          <div>
+            <small>${escapeHTML(blog.category)}</small>
+            <h3>${escapeHTML(blog.title)}</h3>
+            <small>${new Date(blog.createdAt).toLocaleDateString()}</small>
+          </div>
+          <div class="manage-actions">
+            <a href="create-blog.html?edit=${encodeURIComponent(blog._id)}">Edit</a>
+            <button class="danger" data-delete="${escapeHTML(blog._id)}">Delete</button>
+          </div>
+        </article>
+      `).join("");
+
+      $$("[data-delete]", list).forEach(button => {
+        button.addEventListener("click", async () => {
+          if (!confirm("Delete this story permanently?")) return;
+          button.disabled = true;
+          try {
+            await api(`/blogs/${encodeURIComponent(button.dataset.delete)}`, { method: "DELETE" });
+            location.reload();
+          } catch (error) {
+            alert(error.message);
+            button.disabled = false;
+          }
+        });
+      });
+    } catch (error) {
+      list.textContent = error.message;
+      $("#dashboard-empty").hidden = true;
+    }
+  }
+
+  async function setupPostEditor() {
+    const form = $("#post-form");
+    if (!form || !requireLogin()) return;
+
+    const editId = new URLSearchParams(location.search).get("edit");
+    let existingBlog = null;
+
+    if (editId) {
+      try {
+        const result = await api(`/blogs/${encodeURIComponent(editId)}`);
+        existingBlog = result.blog;
+        const authorId = typeof existingBlog.author === "object" ? existingBlog.author?._id : existingBlog.author;
+        if (authorId !== getSession().user.id) {
+          location.href = "dashboard.html";
+          return;
+        }
+
+        $("#editor-heading").textContent = "Edit your story.";
+        for (const field of ["title", "category", "readTime", "excerpt", "content"]) {
+          if (form.elements[field]) form.elements[field].value = existingBlog[field] || "";
+        }
+        form.querySelector('button[type="submit"]').textContent = "Save changes";
+      } catch (error) {
+        showMessage(form, error.message);
+        return;
+      }
+    }
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const blog = {
+        title: String(data.get("title") || "").trim(),
+        category: String(data.get("category") || ""),
+        readTime: String(data.get("readTime") || "5 min read"),
+        excerpt: String(data.get("excerpt") || "").trim(),
+        content: String(data.get("content") || "").trim()
+      };
+
+      if (blog.title.length < 3 || blog.excerpt.length < 15 || blog.content.length < 20 || !blog.category) {
+        return showMessage(form, "Add a title, category, summary (15+ characters) and story (20+ characters).");
+      }
+
+      const button = $('button[type="submit"]', form);
+      button.disabled = true;
+      try {
+        const path = existingBlog ? `/blogs/${encodeURIComponent(existingBlog._id)}` : "/blogs";
+        await api(path, {
+          method: existingBlog ? "PUT" : "POST",
+          body: JSON.stringify(blog)
+        });
+        location.href = "dashboard.html";
+      } catch (error) {
+        showMessage(form, error.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  updateNavigation();
+  setupHome();
+  setupRegister();
+  setupLogin();
+  setupDashboard();
+  setupPostEditor();
+})();
