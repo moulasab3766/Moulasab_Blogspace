@@ -34,6 +34,7 @@ The frontend sends requests to `http://localhost:5000/api`. If you use another L
 | POST | /api/auth/login | Public |
 | GET | /api/auth/me | Bearer token |
 | GET | /api/blogs | Public |
+| GET | /api/blogs/mine | Bearer token — current user's blogs |
 | GET | /api/blogs/:id | Public |
 | POST | /api/blogs | Bearer token |
 | PUT | /api/blogs/:id | Owner only |
