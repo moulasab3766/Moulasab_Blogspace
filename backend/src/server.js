@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import { connectDB } from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import blogRoutes from "./routes/blogRoutes.js";
 
@@ -31,9 +32,19 @@ app.use((_req, res) => res.status(404).json({ message: "Route not found." }));
 
 app.use((err, _req, res, _next) => {
   console.error(err);
+  if (err.name === "ValidationError" || err.name === "CastError") {
+    return res.status(400).json({ message: err.message });
+  }
   res.status(500).json({ message: "Internal server error." });
 });
 
-app.listen(port, () => {
-  console.log(`BlogSpace API running at http://localhost:${port}`);
-});
+connectDB()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`BlogSpace API running at http://localhost:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Could not start BlogSpace API:", error.message);
+    process.exit(1);
+  });
