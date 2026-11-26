@@ -13,16 +13,24 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
 
 const app = express();
 const port = Number(process.env.PORT) || 5000;
+const allowedOrigins = new Set([
+  process.env.CLIENT_ORIGIN || "http://127.0.0.1:5500",
+  "http://localhost:5500",
+  "http://127.0.0.1:5500"
+]);
 
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || "http://127.0.0.1:5500"
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error("Origin is not allowed by CORS."));
+  }
 }));
 app.use(express.json({ limit: "20kb" }));
 app.use("/api", rateLimit({ windowMs: 15 * 60 * 1000, limit: 200 }));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", service: "BlogSpace API" });
+  res.json({ status: "ok", service: "BlogSpace API", database: "connected" });
 });
 
 app.use("/api/auth", authRoutes);
